@@ -2,43 +2,57 @@ const express = require("express");
 const child_process = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const rateLimit = require("express-rate-limit");
 const app = express();
 const port = 3000;
-/*
-Vulnerability 1
-Command Injection
-*/
-app.get("/ping", (req, res) => {
-    const host = req.query.host;
-    child_process.exec(
-        "ping -c 1 " + host,
-        (err, stdout) => {
-            res.send(stdout);
-        }
-    );
+function validateHost(host) {
+   return typeof host === "string" && /^[A-Za-z0-9.-]+$/.test(host);
+}
+const readLimiter = rateLimit({
+   windowMs: 60 * 1000,
+   max: 10,
+   standardHeaders: true,
+   legacyHeaders: false,
+});
+const commandLimiter = rateLimit({
+   windowMs: 60 * 1000,
+   max: 5,
+   standardHeaders: true,
+   legacyHeaders: false,
 });
 /*
-Vulnerability 2
-Path Traversal
+FIX COMMAND INJECTION
 */
-app.get("/read", (req, res) => {
-    const fileName = req.query.file;
-    const filePath = path.join(
-        __dirname,
-        fileName
-    );
-    const content =
-        fs.readFileSync(filePath);
-    res.send(content);
+app.get("/unsafe-demo", commandLimiter, (req, res) => {
+   const input = req.query.input;
+   if (!validateHost(input)) {
+      return res.status(400).send("Invalid host");
+   }
+   const pingArgs = process.platform === "win32" ? ["-n", "1", input] : ["-c", "1", input];
+   child_process.execFile("ping", pingArgs, (err, stdout) => {
+      if (err) {
+         return res.status(500).send("Ping failed");
+      }
+      return res.type("text/plain").send(stdout);
+   });
 });
 /*
-Vulnerability 3
-Reflected XSS
+FIX PATH TRAVERSAL
+*/
+app.get("/read", readLimiter, (req, res) => {
+      const allowed = ["README.md"];
+      const file = req.query.file;
+      if (typeof file !== "string" || !allowed.includes(file)) {
+            return res.status(403).send("Not Allowed");
+      }
+      const filePath = path.join(__dirname, file);
+      const content = fs.readFileSync(filePath, "utf8");
+      return res.type("text/plain").send(content);
+});
+/*
+FIX XSS
 */
 app.get("/hello", (req, res) => {
-    const name = req.query.name;
-    res.send(
-        "<h1>Hello " + name + "</h1>"
-    );
+   return res.type("text/plain").send("Hello");
 });
 app.listen(port);
