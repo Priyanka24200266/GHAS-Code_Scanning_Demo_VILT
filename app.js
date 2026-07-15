@@ -23,7 +23,7 @@ const commandLimiter = rateLimit({
 /*
 FIX COMMAND INJECTION
 */
-app.get("/unsafe-demo", (req, res) => {
+app.get("/unsafe-demo", commandLimiter, (req, res) => {
 const input = req.query.input;
 child_process.exec(
 "ping -c 1 " + input,
