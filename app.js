@@ -25,11 +25,18 @@ FIX COMMAND INJECTION
 */
 app.get("/unsafe-demo", (req, res) => {
 const input = req.query.input;
-child_process.exec(
-"ping -c 1 " + input,
-(err, stdout) => {
-res.send(stdout);
+if (!validateHost(input)) {
+   return res.status(400).send("Invalid host");
 }
+child_process.execFile(
+   "ping",
+   ["-c", "1", input],
+   (err, stdout) => {
+      if (err) {
+         return res.status(500).send("Command failed");
+      }
+      return res.type("text/plain").send(stdout);
+   }
 );
 });
 
