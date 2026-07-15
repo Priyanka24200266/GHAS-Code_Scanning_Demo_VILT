@@ -23,7 +23,7 @@ const commandLimiter = rateLimit({
 /*
 FIX COMMAND INJECTION
 */
-app.get("/unsafe-demo", (req, res) => {
+app.get("/unsafe-demo", commandLimiter, (req, res) => {
 const input = req.query.input;
 if (!validateHost(input)) {
    return res.status(400).send("Invalid host");
